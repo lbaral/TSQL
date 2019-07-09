@@ -1,0 +1,21 @@
+cows = {"Jesse": 6, "Maybel": 3, "Callie": 2, "Maggie": 5}
+limit = 8
+def greedy_cow_transport(cows,limit = 8):
+    
+    train = []
+    cows = sorted(cows.items(), key=lambda c: c[1], reverse = True)
+    while len(cows) > 0:
+        sum = 0
+        car = []
+        for c in cows[:]:
+             
+            if (sum + c[1]) <= limit:
+                car.append(c[1])
+                cows.remove(c)
+                sum = sum + c[1]
+            
+                
+                
+        train.append(car)
+    return train
+print(greedy_cow_transport(cows))
