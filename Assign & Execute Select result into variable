@@ -1,0 +1,16 @@
+alter proc dbo.usptest 
+
+(@sql  nvarchar(Max)='',@IsDeleted bit= 1)
+
+as 
+
+begin
+
+set @sql  = concat ('select * from dbo.employee where 1 =' ,@IsDeleted)
+
+
+
+EXEC sp_executesql @SQL
+
+
+end
