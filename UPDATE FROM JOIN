@@ -1,0 +1,10 @@
+UPDATE 
+calumo_acm.dbo.UsersGroups_V2 
+SET Description=G.Name
+FROM 
+calumo_acm.dbo.UsersGroups_V2 TD
+LEFT JOIN 
+ calumo_acm.dbo.Groups G
+ON TD.groupID=G.Id
+
+where 1=1
