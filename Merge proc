@@ -1,0 +1,42 @@
+ create proc dbo.upsLoadUserGroups_dev (	
+	@LoginID	int = null
+)
+
+  as
+
+  begin
+
+  truncate table [calumo_ACM].[dbo].[UsersGroups_V2]
+
+  Merge into [calumo_ACM].[dbo].[UsersGroups_V2] as Target Using
+  (select 
+
+  GroupID
+  ,UserID
+  ,Description = g.Name
+  from [calumo_ACM].[dbo].[UsersGroups] UG
+  left join [calumo_ACM].[dbo].Groups G
+  on UG.groupID=G.Id) As source On
+
+  target.groupID = Source.groupId
+
+  When Matched then Update Set 
+   target.GroupID				= source.GroupID
+  ,target.UserID				= source.UserID
+  ,target.Description			= source.Description
+
+  When Not Matched Then Insert
+  (
+   GroupID	
+  ,UserID	
+  ,Description
+  ) Values
+
+  (
+   source.GroupID
+  ,source.UserID
+  ,source.Description
+  );
+
+
+  end
