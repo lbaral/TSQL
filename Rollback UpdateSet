@@ -1,0 +1,14 @@
+
+# Run from begin tran to rollback - otherwise the table will be locked
+# varify the result, the result will not be committed
+# if happy go ahead with update command
+
+
+begin tran
+
+update dbo.CITY set [CITY NAME] = 'QUEENSLAND'
+where [CITY ID] = 11
+
+select * from dbo.city
+
+rollback
