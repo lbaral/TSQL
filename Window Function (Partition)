@@ -1,4 +1,16 @@
 --ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW  -- Check range
+SELECT 
+ SalesGroup,
+   Country,
+ AnnualSales,
+   COUNT(AnnualSales) OVER(PARTITION BY SalesGroup
+ORDER BY AnnualSales DESC RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS CountryCount,
+  SUM(AnnualSales) OVER(PARTITION BY SalesGroup
+      ORDER BY AnnualSales DESC  RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS TotalSales
+	FROM
+	  RegionalSales;
+
+---------------------------------------------
 	  SELECT 
  SalesGroup,
    Country,
