@@ -1,0 +1,47 @@
+#Opening Mid Closing and EOD Report cross join with Date and site / station
+				
+        
+        alter proc [dbo].[uspReseedSafeCount] as
+				begin
+
+
+				merge dbo.SafeCount as target using
+				(
+				--Site safe OMC balances
+				select 
+					s.siteKey as stationOrSiteKey, 
+					d.dateKey, 
+					c.countKey
+				From 
+					dbo.DimSite s cross join
+					core.DimDate d cross apply
+					(select 'O' as countKey union all select 'M' union all select 'C') c
+				where
+					d.date between '2019-11-01' and getdate() + 1 
+
+				union all
+				--Station till EOD balances
+				select 
+					s.stationKey as stationOrSiteKey, 
+					d.dateKey, 
+					'EOD' as countKey
+				From 
+					dbo.DimStation s cross join
+					core.DimDate d					
+				where
+					d.date between '2019-11-01' and getdate() + 1 
+				) as source
+				on 
+				source.stationOrSiteKey = target.stationOrSiteKey and
+				source.dateKey = target.dateKey and 
+				source.countKey = target.countKey
+				when not matched then insert
+				(
+				stationDateCountKey
+				)
+				values
+				(
+				concat(source.stationOrSiteKey, '.', source.dateKey, '.', source.countKey)
+				);
+				end
+GO
