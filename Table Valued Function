@@ -1,0 +1,27 @@
+--Create Table Valued Funtion with parameter
+ALTER FUNCTION udfProductInYear (
+    @start_year INT,
+    @end_year INT
+)
+RETURNS TABLE
+AS
+RETURN
+    SELECT 
+        product_name,
+        model_year,
+        list_price
+    FROM
+        production.products
+    WHERE
+        model_year BETWEEN @start_year AND @end_year
+
+
+		-- Query on from as a Table / look at scaler to query as a select column from <Table>
+SELECT 
+    product_name,
+    model_year,
+    list_price
+FROM 
+    udfProductInYear(2017,2018)
+ORDER BY
+    product_name;
