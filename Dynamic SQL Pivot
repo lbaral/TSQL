@@ -1,0 +1,29 @@
+/****** Script for Pivot with Dynamic SQl   ******/
+
+
+declare @DynamicColumns AS VARCHAR (max)
+declare @Final AS VARCHAR (max)
+SELECT @DynamicColumns = COALESCE (@DynamicColumns + ',','') + QUOTENAME ([year])
+
+from (Select distinct top 10  year from dbo.AllYears where year between 2001 and 2010 order by year asc) as y;
+
+SET @Final ='
+with ctePersonCount as(
+SELECT  [name],year
+ , PCount = Row_number() over (partition by sex,year order by number desc)
+from dbo.Allyears
+
+WHERE sex = ''M'' 
+
+)
+
+Select * 
+from ctePersonCount
+pivot(
+max (ctePersonCount.name)
+for ctePersonCount.year in  (' + @DynamicColumns + ')
+
+) p
+where PCount between 1 and 10 '
+
+Execute (@Final)
