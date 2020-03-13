@@ -1,0 +1,25 @@
+/****** Script for SelectTopNRows command from SSMS  ******/
+
+
+
+--select * from vwdimdate
+
+ -- insert into  [dbo].[factGLGP_AMTAR] (scenarioKey, dateKey, accountLongKey, companyKey, dataSourceKey, venueKey, currencySourceKey, amountDrCr, amountOpeningDrCr, amountClosingDrCr, txnNote, lastUpdate, lastUpdateBy, [Group])
+ with datemap as (
+ select d.dateKey, newDateKey = n.dateKey
+ from vwDimDate d 
+	inner join (select weekNumber, dayOfWeekKey, dateKey from vwDimDate where yearKey = 2021) n on d.weekNumber = n.weekNumber and d.dayOfWeekKey = n.dayOfWeekKey
+ where d.yearKey = 2020
+ )
+
+ --select sum(amountDrCr) 
+ insert into  [dbo].[factGLGP_AMTAR] (scenarioKey, dateKey, accountLongKey, companyKey, dataSourceKey, venueKey, currencySourceKey, amountDrCr, amountOpeningDrCr, amountClosingDrCr, txnNote, lastUpdate, lastUpdateBy, [Group])
+  select scenarioKey,datemap.newDatekey
+	, f.accountLongKey, companyKey, dataSourceKey, venueKey, currencySourceKey, amountDrCr, amountOpeningDrCr, amountClosingDrCr, txnNote, lastUpdate, lastUpdateBy, [Group] 
+  from [dbo].[factGLGP_AMTAR] f
+  join datemap on f.datekey = datemap.dateKey
+  --where dateKey > 20190630 and datekey < 20200629
+  --order by 2
+  --where left(dateKey,6) >= 201807 and left(dateKey,6) <= 201906
+  --where left(dateKey,6) >= 201707 and left(dateKey,6) <= 201806
+--  group by mal.accountLong
