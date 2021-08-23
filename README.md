@@ -18,3 +18,13 @@ Subqueries        - there is limitation with Window function which can be used i
                   Correlated Subqueries
                   - return a scalar result to main query
                   - inner query joins with the outer query by where clause
+                  
+ Exists - for one to many relationship if we want to filter out by specific criteria and not return any data
+                        
+          - Goes into where clause
+          
+CTE       - sequencial build of query contrast to subqueries. Reusable, less code
+
+Recursive CTE - To generate series of numbers which whould need lots of UNIONs otherwise eg. 365 days of the year in a column
+                3 components  Anchor, Recursion query and termination condition. CTE then called by select.
+                - with cte1 as (select 1 as series union all select series +1  from cte1 where series<99)select * from cte1
