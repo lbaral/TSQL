@@ -14,4 +14,7 @@ SUM (Sales YTD) OVER ( [ProductID, [OrderQty])
 
 Subqueries        - there is limitation with Window function which can be used in select or order by
 
-                  -  so to apply filter in where clause subqueries are needed
+                  -  so to apply filter in select or where clause subqueries are needed
+                  Correlated Subqueries
+                  - return a scalar result to main query
+                  - inner query joins with the outer query by where clause
