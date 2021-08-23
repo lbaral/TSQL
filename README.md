@@ -10,3 +10,8 @@ SUM (Sales YTD) OVER ()
 
 Partition BY           - TO compute aggreggate totals (subtotals) for groups while using window function
                        - Contrast to group by where non aggregated columns are specified, in partition by we specify the columns.
+SUM (Sales YTD) OVER ( [ProductID, [OrderQty])
+
+Subqueries        - there is limitation with Window function which can be used in select or order by
+
+                  -  so to apply filter in where clause subqueries are needed
