@@ -28,3 +28,23 @@ CTE       - sequencial build of query contrast to subqueries. Reusable, less cod
 Recursive CTE - To generate series of numbers which whould need lots of UNIONs otherwise eg. 365 days of the year in a column
                 3 components  Anchor, Recursion query and termination condition. CTE then called by select.
                 - with cte1 as (select 1 as series union all select series +1  from cte1 where series<99)select * from cte1
+                
+Temp Tables             - Tackles limitations of CTE like reusability and troubleshooting, and being query level scope.
+                        - In contrast Temp table is session scoped
+                        - Help to specipy data type of field
+                        - CREATE, INSERT and oPDATE
+            
+Optimisation            - Update can be run multiple times unlike insert which duplicates record, Use Update with temp table when select with multiple joins is huge
+                        - Exists vs Update will - to grab (a/any)data on secondary table on many side of relationship
+                        
+Index                - Clustered Index - Physically sort data in a table, PK is Clustered Index by default. There can be only one Clustered Index on the table
+                        - Can be a combination of one or more keys which are unique
+                        - Use in field/fields most used in the joins
+                     - Non Clustered Index- Not a physical sorting of data, table may have many non-clustered indexes. The field or fields non-clustered indexes
+                        apply to is stored in an external data structure. Still should have a high level of uniqueness.
+                        
+                        
+Lookup Tables        - Eliminate redundant code, and have a single source of truth, add simplicity
+
+Variable             - Named placeholder, use it in multiple places.
+            
