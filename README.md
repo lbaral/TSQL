@@ -38,13 +38,29 @@ Optimisation            - Update can be run multiple times unlike insert which d
                         - Exists vs Update will - to grab (a/any)data on secondary table on many side of relationship
                         
 Index                - Clustered Index - Physically sort data in a table, PK is Clustered Index by default. There can be only one Clustered Index on the table
-                        - Can be a combination of one or more keys which are unique
-                        - Use in field/fields most used in the joins
+                                    - Can be a combination of one or more keys which are unique
+                                    - Use in field/fields most used in the joins
                      - Non Clustered Index- Not a physical sorting of data, table may have many non-clustered indexes. The field or fields non-clustered indexes
-                        apply to is stored in an external data structure. Still should have a high level of uniqueness.
+                                    apply to is stored in an external data structure. Still should have a high level of uniqueness.
                         
                         
-Lookup Tables        - Eliminate redundant code, and have a single source of truth, add simplicity
+Lookup Tables                       - Eliminate redundant code, and have a single source of truth, add simplicity
 
-Variable             - Named placeholder, use it in multiple places.
+Variable                            -Named placeholder, use it in multiple places. Break down piece of complex manipulation e.g. finding last day of a month.
+
+Functions                           - When builtin is not enough. 
+                                    - data type the function returns, does function takes parameter,
+                     
+Stored Proc                         - Database objects that gives infinate range of possibilities. 
+                                    - Dynamic user driven reports
+                        - COntrol Flow with if and else
+                        - SQL allows just to run if and not else, in this case the execution just moves on to another piece of code
+                        
+                        
+Dynamic SQL             - A text string that is a valid sql code
+                        - A code that writes itself. if a query is repeated with just a slight variations. 
+                        - take parameter passed into proc to dynamically construct one sequel query that incorporates the result
+                        - Buid the @dynamicsql step by step
+                       
+                     
             
