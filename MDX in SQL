@@ -1,0 +1,538 @@
+USE [DPEDW]
+GO
+/****** Object:  StoredProcedure [dbo].[uspReport_LEC_REC]    Script Date: 8/5/2021 5:33:07 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+
+/*
+
+exec [config].[uspETL_ReplicateObjectDefintionsToClusterSchemas]
+ @LoginID ='admin-harveye'
+,@RefreshDefn  = 1
+,@FullRefresh = 0
+,@IncludeSMORefresh = 0
+,@ReplicateCubeTemplate = 0 
+,@IncludeViewDependencyRefresh =0
+
+*/
+-- Last updated 3/11/2021  1:48 (LG)
+-- Changing to MDX... Deadlock on the large views
+-- exec [dbo].[uspReportMDX_LEC_Summary]  @LoginID= 'admin-barall',@fiscalYearMonthKey=202107, @reportedBudgetKey=1066,@CompanyKeyFilter='14,65,2,58,124,87,83,85,4',@SAPInstanceKey=-1
+
+--/*
+Create  or Alter  PROCEDURE [dbo].[uspReportMDX_LEC_Summary] --  'barall'
+( 
+ @LoginID nvarchar(255)
+ ,@fiscalYearMonthUID nvarchar(255) = '[Date].[Fiscal].[Year Month].&[202107]'
+ ,@reportedBudgetUID nvarchar(255) = '[Scenario].[Scenario].&[600]'
+ ,@BusinessUnitFilterUID nvarchar(255) = '[Business Unit Detail].[Current Cluster].&[-4873]'
+ ,@CompanyKeyFilterUID nvarchar(255) = '[Company].[Company by SAP Instance].[All Company]'
+ ,@SourceSystemDataSource nvarchar(255) ='[Datasource].[Source System Data Source].[All Datasources]'
+ ,@primeEntity nvarchar(255) = '[Prime Entity].[Prime Entity by Category].[Category].&[General Government]'
+ ,@SAPInstanceKey integer =-1 -- change to multiselect
+ ,@SuppressBlankRows bit = 0
+ )
+as
+begin
+
+begin try
+
+--######################################################################
+-- setup variables
+--######################################################################
+
+Declare 
+ @LoggingHeaderKey int
+,@LoggingDetailKey int
+,@ProcessSQLObject varchar(500)
+,@UserKey int  = -1
+,@ProcessExecutionParameters varchar(max)
+,@ProcessErrorMessage varchar(8000)
+,@ProcessStep varchar(500)
+,@RunTime datetime = getdate()
+,@RumTimeMs varchar(50)
+,@Email nvarchar(4000)
+,@MailSubject varchar(500)
+,@AlertTypeKey tinyint = 1  -- ETL failure
+,@RowsImpacted int = 0
+,@ProcessMessage varchar(500)
+,@DefaultSerialDate int 
+,@HeaderRowKey int 
+,@LoopCounterMax int
+,@CurrentLoopCount int 
+,@CurrentPositionStatusKey smallint 
+,@1stPlanFiscalYear  smallint 
+,@FirstPlanYearMonthKey int
+,@WBSCategoryKey smallint 
+,@AllPermittedInputAccountsAllocationTypeKey smallint
+,@DefaultInputAccountsAllocationTypeKey  smallint
+,@SQLEXEC nvarchar(max)
+,@CurrentSAPInstance varchar(20)
+,@InstanceLoopMax int
+,@CurrentInstanceLoopCount int 
+,@SAPInstanceKeyInt int
+,@CurrentSAPInstanceCompMappingTable varchar(200)
+,@IsAdmin bit = 0
+,@AccessGranted bit = 1
+,@LinkedServer varchar(20) = 'SSASClusterDPIE'
+--,@CompanyKeyFilterUID nvarchar(max) = ''
+,@schema varchar(50)
+
+
+
+
+
+
+
+
+ --######################################################################
+--Create Temp Tables for SAPInstanceKey, MDXResult and Company
+--######################################################################
+
+--create table #SAPInstanceKey (SAPInstanceKey smallint primary key,SAPInstanceEntityPrefix varchar(10))
+
+create table #MDXResults(
+    [Business Unit]		varchar(150) Null,
+	[BU Code]			varchar(150) NULL,
+	[Position]			varchar(150) NULL,
+	[Position Code]		varchar(150) NULL,
+	[TAA Postion]		varchar(150) NULL,
+	[TAA Postion Code]	varchar(150) NULL,
+	[Employee]			varchar(150) NULL,
+	[HR Pay Post Hours ACT]		Float,
+	[HR Pay Post Amount ACT]	Float,
+	[HR Pay Post FTE ACT]		Float,
+	[HR Pay Post Hours BUD]		Float,
+	[HR Pay Post Amount BUD]	Float,
+	[HR Pay Post FTE BUD]		Float,
+
+									   
+										
+								  
+									  
+									
+										
+								  
+								 
+								 
+								 
+								
+) 
+
+
+
+--create table #company (companyKey integer primary key, companyUID varchar(200))
+
+
+ --################################################################################
+set @ProcessStep = 'Logging'
+--################################################################################
+
+-- get current proc name
+set @ProcessSQLObject =OBJECT_SCHEMA_NAME(@@PROCID)+'.'+ object_name(@@PROCID)
+set @schema =OBJECT_SCHEMA_NAME(@@PROCID)
+
+-- record parameters at time of execution
+
+Select @UserKey = cu.Id 
+from dbo.SynCalumoCalumoUsers as cu
+where cu.LoginID = @LoginID
+
+set @ProcessExecutionParameters = ' exec '+ @ProcessSQLObject 
+set @ProcessExecutionParameters = concat ( @ProcessExecutionParameters , ' @LoginID	= ''',@LoginID,'''')
+set @ProcessExecutionParameters = concat ( @ProcessExecutionParameters , ',@fiscalYearMonthUID	= ''',@fiscalYearMonthUID,'''')
+set @ProcessExecutionParameters = concat ( @ProcessExecutionParameters , ',@reportedBudgetUID	= ''',@reportedBudgetUID,'''')
+set @ProcessExecutionParameters = concat ( @ProcessExecutionParameters , ',@BusinessUnitFilterUID	= ''',@BusinessUnitFilterUID,'''')
+set @ProcessExecutionParameters = concat ( @ProcessExecutionParameters , ',@CompanyKeyFilterUID	= ''',@CompanyKeyFilterUID,'''')
+set @ProcessExecutionParameters = concat ( @ProcessExecutionParameters , ',@SourceSystemDataSource	= ''',@SourceSystemDataSource,'''')
+set @ProcessExecutionParameters = concat ( @ProcessExecutionParameters , ',@primeEntity	= ''',@primeEntity,'''')
+set @ProcessExecutionParameters = concat ( @ProcessExecutionParameters , ',@SuppressBlankRows	= ',@SuppressBlankRows)
+
+
+Insert into dbo.[LogProcessesHeader]([UserKey],[ProcessSQLObject],[ProcessExecutionParameters])
+		values   (@Userkey,@ProcessSQLObject, @ProcessExecutionParameters)
+set @LoggingHeaderKey = scope_identity()
+
+
+
+
+					  
+/*
+
+Declare
+ @LoggingHeaderKey int 
+,@ProcSchema varchar(200) = 'dbo'
+,@Proc varchar(200)  = 'uspReportMDX_LEC_Summary'
+,@ProcandSchema varchar(300)
+
+set @ProcandSchema = concat ( @ProcSchema   , '.', @Proc  )
+
+Select @LoggingHeaderKey = max(LoggingHeaderKey) from  dbo.[LogProcessesHeader] as l
+where l.ProcessSQLObject = @ProcandSchema
+
+Select top 3  * from dbo.[LogProcessesHeader] as l
+where l.ProcessSQLObject = @ProcandSchema
+order by l.LoggingHeaderKey desc
+
+Select * from dbo.LogProcessesDetail as ld
+where ld.LoggingHeaderKey = @LoggingHeaderKey
+
+*/
+
+
+
+--################################################################################
+set @ProcessStep = 'Populate variables'
+--################################################################################
+
+--Logging steps-----------------------------------------------------------------------
+
+
+insert into dbo.[LogProcessesDetail] ([LoggingHeaderKey] ,[ProcessStep])  VALUES (@LoggingHeaderKey ,@ProcessStep)  set @LoggingDetailKey = scope_identity()
+
+update e  set @Email  =isnull(@Email+';','') +   [Email]
+  FROM [dbo].[configEmailAlerts] as e
+where e.AlertTypeKey =@AlertTypeKey
+
+
+
+
+set @LinkedServer = CONCAT('SSASCluster',@schema,'-RO1')
+
+set @LoginID ='dec\'+ replace(@LoginID, 'dec\','')
+
+/*
+-- Set-up companies table
+if @companyKeyFilter !=''
+BEGIN
+  -- declare @companyKeyFilter varchar(100) ='2,3,25'
+  insert into #company(companyKey)
+  select value from string_split(@companyKeyFilter,',')
+
+  update c
+  set companyUID =concat( '[Company].[Company by SAP Instance].[Company].&[',  co.[Company], '.', dsi.EntityPrefix ,  ']')
+  from #company c
+  join dbo.DimCompany co on c.companyKey = co.CompanyKey
+  join dbo.DimSAPInstance as dsi on 
+	dsi.SAPInstanceKey = co.SAPInstanceKey
+
+END
+
+--set @CompanyKeyFilterUID = (select STRING_AGG(companyUID,', ') from #company)
+--*/	
+
+--AuthProc if not in list
+Declare @AuthProc varchaR(200)
+set @AuthProc = quotename(OBJECT_SCHEMA_NAME(@@PROCID))+'.'+ quotename(object_name(@@PROCID))
+
+if not exists (select 1 from dbo.SynCalumoAuthorizedProc as ap where ap.Name = @AuthProc)
+begin
+INSERT INTO dbo.SynCalumoAuthorizedProc
+           ([Name]
+           ,[Server]
+           ,[IsAuthorized])
+     VALUES
+           (@AuthProc
+           ,'dpedw'
+           ,1)
+end
+
+
+
+
+--Logging steps-----------------------------------------------------------------------
+update dbo.[LogProcessesDetail]   SET [ProcessStepComplete] = getdate(),[ProcessStepSuccessful] = 1 WHERE [LoggingDetailKey] =@LoggingDetailKey 
+
+--################################################################################
+set @ProcessStep = 'Insert OneSAP data'
+--################################################################################
+--Logging steps-----------------------------------------------------------------------
+insert into dbo.[LogProcessesDetail] ([LoggingHeaderKey] ,[ProcessStep])  VALUES (@LoggingHeaderKey ,@ProcessStep)  set @LoggingDetailKey = scope_identity()
+
+declare 
+ @TSQL nvarchar(max)
+,@mdx nvarchar(max)=''
+,@currentInstance varchar(10)
+,@count int = 0
+
+
+
+
+
+set @mdx = 
+
+concat( 'with member [Company].[Company].blankrow as "Spacer"
+
+member [Scenario].[Scenario].[CompareTo]  as ', @reportedBudgetUID,'
+member [Datasource].[Source System Data Source].[Filter] as ',@SourceSystemDataSource,'
+
+SELECT 
+
+    {
+	(
+[Scenario].[Scenario].&[1],[Datasource].[Source System Data Source].[Filter]
+	)
+,
+	(
+[Scenario].[Scenario].[CompareTo], [Datasource].[Source System Data Source].[All Datasources]
+	)
+    }*
+    {
+      [Measures].[HR Pay Post Hours],
+      [Measures].[HR Pay Post Amount],
+[Measures].[HR Pay Post FTE]
+    } 
+ON COLUMNS,
+  {
+
+    {
+      NonEmpty
+      (
+          {
+            [Business Unit Detail].[Business Unit].[All Business Units].Children
+          }*
+          {
+            [Business Unit Detail].[Business Unit Code].[All Business Units].Children
+          }*
+          {[Position].[Position].[All Position].Children}*
+          {[Position].[Position Code].[All Position].Children}*
+          {[Position TAA].[Position Name].[All Position].Children}*
+          {[Position TAA].[Position Code].[All Position].Children}*
+          order ({[Employee].[Employee].[All Employees].Children},[Employee].[Employee].CurrentMember.Name, BASC),
+        
+          {
+
+
+    {
+[Scenario].[Scenario].&[1]
+,
+[Scenario].[Scenario].[CompareTo]
+    }*
+    {
+      [Measures].[HR Pay Post Hours],
+      [Measures].[HR Pay Post Amount],
+[Measures].[HR Pay Post FTE]
+    } 
+
+          }
+      )
+    },
+
+    {
+          {[Business Unit Detail].[Business Unit].[All Business Units]}*
+          {[Business Unit Detail].[Business Unit Code].[All Business Units]}*
+          {[Position].[Position].[All Position]}*
+          {[Position].[Position Code].[All Position]}*
+          {[Position TAA].[Position Name].[All Position]}*
+          {[Position TAA].[Position Code].[All Position]}*
+          {[Employee].[Employee].[All Employees]}
+	
+	}
+  
+  } ON ROWS
+FROM
+
+
+( 
+Select {
+nonempty (
+[Business Unit HR Summary Filter].[Business Unit Key].[All].children
+,([Measures].[Security AD User Business Unit Workforce Summary Summary Count])
+) 
+} on 0 , {
+nonempty ([Business Unit Detail Filter Workforce Detail].[Business Unit Detail Key].[All].children
+,([Measures].[Security AD User Business Unit Workforce Detail Count])
+) } 
+
+on 1
+
+from [MyOutcomes]
+
+where (
+[AD User].[AD User].&[',@LoginID,'] 
+)
+ 
+) 
+
+WHERE 
+  (
+
+
+{' , @CompanyKeyFilterUID , '}
+,
+{' , @BusinessUnitFilterUID , '}
+
+
+,
+[Position].[Is SAP].DefaultMember
+,
+[Org ID].[Org Hierarchy].DefaultMember
+
+,
+[Account].[Account Type Group].&[Profit and Loss]
+
+,
+[Relative Period].[Relative Period].&[CUR]
+,
+{' , @fiscalYearMonthUID , '}
+,
+{' , @primeEntity , '}
+
+
+  )
+CELL PROPERTIES 
+  VALUE')
+
+
+
+set @TSQL =
+concat('
+SELECT
+     "[Business Unit Detail].[Business Unit].[Business Unit].[MEMBER_CAPTION]"	
+	,"[Business Unit Detail].[Business Unit Code].[Business Unit Code].[MEMBER_CAPTION]"
+	,"[Position].[Position].[Position].[MEMBER_CAPTION]"
+	,"[Position].[Position Code].[Position Code].[MEMBER_CAPTION]"
+	,"[Position TAA].[Position Name].[Position Name].[MEMBER_CAPTION]"
+	,"[Position TAA].[Position Code].[Position Code].[MEMBER_CAPTION]"
+	,"[Employee].[Employee].[Employee].[MEMBER_CAPTION]"
+	,"[Scenario].[Scenario].&[1].[Datasource].[Source System Data Source].[Filter].[Measures].[HR Pay Post Hours]"
+	,"[Scenario].[Scenario].&[1].[Datasource].[Source System Data Source].[Filter].[Measures].[HR Pay Post Amount]"
+	,"[Scenario].[Scenario].&[1].[Datasource].[Source System Data Source].[Filter].[Measures].[HR Pay Post FTE]"
+	,"[Scenario].[Scenario].[CompareTo].[Datasource].[Source System Data Source].[All Datasources].[Measures].[HR Pay Post Hours]"
+	,"[Scenario].[Scenario].[CompareTo].[Datasource].[Source System Data Source].[All Datasources].[Measures].[HR Pay Post Amount]"
+	,"[Scenario].[Scenario].[CompareTo].[Datasource].[Source System Data Source].[All Datasources].[Measures].[HR Pay Post FTE]"
+  
+ 	from openquery( ',quotename(@LinkedServer),',''',@mdx,''')')
+								 
+   																										 
+   
+update dbo.[LogProcessesDetail] set ProcessStepDynamicSQL= @TSQL where LoggingDetailKey=@LoggingDetailKey
+
+insert into #MDXResults(
+					 [Business Unit]	
+					,[BU Code]		
+					,[Position]				
+					,[Position Code]			
+					,[TAA Postion]			
+					,[TAA Postion Code]		
+					,[Employee]				
+					,[HR Pay Post Hours ACT]	
+					,[HR Pay Post Amount ACT]
+					,[HR Pay Post FTE ACT]	
+					,[HR Pay Post Hours BUD]	
+					,[HR Pay Post Amount BUD]
+					,[HR Pay Post FTE BUD]	
+					 )		   
+exec sp_executesql @TSQL
+
+
+
+
+
+
+
+
+
+ --Logging steps-----------------------------------------------------------------------
+update dbo.[LogProcessesDetail]   SET [ProcessStepComplete] = getdate(),[ProcessStepSuccessful] = 1 WHERE [LoggingDetailKey] =@LoggingDetailKey 
+
+
+
+--Additional Transformation if required																					   								   
+/*
+-- Expose Code and Desc separately:
+update #MDXResults set companyCode = left([company],4), companyDesc = right([company],len(company)-5)  where [company]!=''
+--update #MDXResults 
+--set 
+--accountCode = a.[AccountCode],
+--accountDesc = a.[AccountDescription]
+--from #MDXResults m join [dbo].DimAccount a on m.account = a.[AccountCodeDescription]
+update #MDXResults set 
+  AccountCode = left ([account] , charindex(' ' ,[account],1) )
+,[AccountDesc] =ltrim( rtrim(substring ([account] , charindex(' ' ,[account],1)+1,200 )))
+
+/*
+IIf(SAPInstance='OEH',left([account],4), left([account],6)),
+[AccountDesc] = 
+IIf(SAPInstance='OEH',right([account],len([account])-5),
+   right([account],len([account])-7)  )
+   IIf(SAPInstance='OEH',right([account],len([account])-5),
+   right([account],len([account])-7)  )
+   */
+where [account]!=''
+
+*/
+--################################################################################
+set @ProcessStep = 'return details'
+--################################################################################
+--Logging steps-----------------------------------------------------------------------
+insert into dbo.[LogProcessesDetail] ([LoggingHeaderKey] ,[ProcessStep])  VALUES (@LoggingHeaderKey ,@ProcessStep)  set @LoggingDetailKey = scope_identity()
+
+  select					
+			[Employee],														   
+			[Position],			
+			[Position Code],		
+			[TAA Postion],		
+			[TAA Postion Code],	
+			[Business Unit],
+			[BU Code],	 
+			[HR Pay Post Hours ACT]		= round (isnull( [HR Pay Post Hours ACT],0) ,4),
+			[HR Pay Post Amount ACT]	= round (isnull( [HR Pay Post Amount ACT],0) ,4),
+			[HR Pay Post Amount BUD]	= round (isnull( [HR Pay Post Amount BUD],0) ,4),
+			[HR Pay Post Amount Var]	= round (isnull( [HR Pay Post Amount BUD],0) ,4)-round (isnull( [HR Pay Post Amount ACT],0) ,4),
+			[HR Pay Post FTE ACT]		= round (isnull( [HR Pay Post FTE ACT],0) ,4),
+			[HR Pay Post FTE BUD]		= round (isnull( [HR Pay Post FTE BUD],0) ,4),
+			[HR Pay Post FTE Var]		= round (isnull( [HR Pay Post FTE BUD],0) ,4)-round (isnull( [HR Pay Post FTE ACT],0) ,4)
+			--[HR Pay Post Hours BUD]	= round (try_cast( [HR Pay Post Hours BUD] as float) ,4),
+			
+   			
+   
+	   
+  from #MDXResults
+/*
+  where
+  (@SuppressBlankRows = 1 )
+  or @SuppressBlankRows = 0
+*/	
+  order by 1 desc
+
+--Logging steps-----------------------------------------------------------------------
+update dbo.[LogProcessesDetail]   SET [ProcessStepComplete] = getdate(),[ProcessStepSuccessful] = 1 WHERE [LoggingDetailKey] =@LoggingDetailKey 
+
+--########################################################################################
+--END BLOCK
+--########################################################################################
+
+--Logging header-----------------------------------------------------------------------
+update dbo.[LogProcessesHeader] set ProcessComplete = getdate() , ProcessSuccessful = 1 where LoggingHeaderKey = @LoggingHeaderKey
+
+	
+end try
+
+begin catch
+
+	set @ProcessErrorMessage = @ProcessSQLObject + ' ' + @ProcessStep + isnull(error_message(),'') 
+	set @MailSubject = @ProcessSQLObject  + ' ' + @ProcessStep
+
+	--Logging steps-----------------------------------------------------------------------
+	update dbo.[LogProcessesDetail] set [ProcessStepComplete] = getdate(), [ProcessErrorMessage] = @ProcessErrorMessage  WHERE [LoggingDetailKey] =@LoggingDetailKey
+	--Logging header-----------------------------------------------------------------------
+	
+	update dbo.[LogProcessesHeader] set ProcessComplete = getdate() ,  [ProcessErrorMessage] = @ProcessErrorMessage where LoggingHeaderKey = @LoggingHeaderKey
+	
+																																							  
+ 
+	exec [dbo].[uspUTIL_SendMail] 
+	   @UserEmail = @Email
+	  ,@MailBody = @ProcessErrorMessage
+	  ,@MailSubject = @MailSubject
+
+			
+	end catch
+
+
+end
