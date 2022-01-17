@@ -1,0 +1,33 @@
+select @col = concat('coalesce(', string_agg(concat('iif( d.packageItemCode = ''',packageItemCode, ''', i.[', ImportColumn, '], null)') , ', '), ', null)')                
+from DimPackageItem d                
+where d.ImportColumn is not null                
+                 
+                
+                
+select @sql  =concat('                
+					
+insert into [dbo].[FactPackageItemDetail] (                
+ [packageKey], [packageItemKey], [amount],                 
+ [period], [notes], [lastUpdateBy], [lastUpdate], [createdBy], [created], [logKey]                
+)                
+SELECT                 
+ p.[packageKey],                 
+ d.[packageItemKey],                 
+ [amount] = ', @col, ',                 
+ [period] = null,                 
+ [notes] = null,                 
+ p.[lastUpdateBy],                 
+ p.[lastUpdate],                 
+ p.[createdBy],                 
+ p.[created],                 
+ p.[logKey]                
+FROM  [dbo].[FactPackage] p                 
+ inner join [staging].[UploadEmployeeDetails] i                
+  on p.[sourceRowId] = i.id                
+ cross join DimPackageItem d                
+where p.scenarioKey = ', @scenarioKey, '			        
+and d.ImportColumn is not null                
+')                
+                
+print @sql                
+exec (@sql)     
