@@ -1,0 +1,27 @@
+ cross apply (                   
+  select JSONText = (                  
+   SELECT                   
+     i.packageItemKey                  
+    ,[nextIncreaseDate]                  
+    ,p.toDate                  
+    ,[which] = iif(isnull([nextIncreaseDate],'1-Dec-2099')<=p.toDate, 'a','b')                  
+   ,[before] = tsb.TotalSalary                  
+    ,[after] = tsa.TotalSalary                  
+    ,[pi].packageItemType               
+    ,[calculation] = case [pi].packageItemType                   
+          when 'Salary' then 'amount  * (1 - vacancy Rate) / 12'                  
+          when 'Allowance' then 'amount * (1 - vacancy Rate) / 12 * superRate'                  
+          when 'Stat' then 'amount'                  
+          when 'Calculation' then '(amount / 100 * (totalSalary * (1 - vacancy Rate) / 12)'                  
+        end                    
+                  
+    ,[calcValues] = case [pi].packageItemType                   
+          when 'Salary' then concat(si.amount1, ' / 12')                  
+          when 'Allowance' then concat(si.amount1, ' / 12 * ', sup.SuperRate)                  
+          when 'Stat' then concat('',i.amount)                  
+          when 'Calculation' then concat('(',i.amount,' / 100) * (', ts.totalSalary, '/ 12)')                  
+        end                  
+   for json path, without_array_wrapper                   
+ )) as JSON                  
+ where i.amount is not null               
+ and pi.packageItemCode not  in( 'PT','WC', 'vacancy', 'ALTaken') 
