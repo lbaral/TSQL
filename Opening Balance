@@ -1,0 +1,171 @@
+/****** Object:  StoredProcedure [core].[uspCalculateOpeningBalance]    Script Date: 4/16/2024 4:04:14 AM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+  
+ALTER   procedure [core].[uspCalculateOpeningBalance]  
+as  
+begin  
+  
+--/*  
+  
+  
+  /*      
+      
+  balance summary      
+      
+   */      
+      
+ drop table if exists #balances       
+ create table #balances (      
+  [class] varchar (2),      
+  [companyKey] int,      
+  [accountKey] int,  
+  [segment1Key] int,  
+  [fiscalYearCode] varchar (6),      
+  [amount] money,      
+  index ci clustered ([class], [fiscalYearCode], [companyKey], [segment1Key], [accountKey])  
+ )      
+      
+ insert into #balances ([class], [fiscalYearCode], [companyKey], [accountKey], [segment1Key], [amount])      
+      
+ select       
+      
+  [class] = coalesce (x1.[class], 'PL'),      
+  [fiscalYearCode] = p1.[fiscalYearCode],       
+  [companyKey] = f.[companyKey],       
+  [accountKey] = f.[accountKey],       
+  [segment1Key] = f.[segment1Key],  
+  [balance] = sum (f.[amount])      
+      
+ from [core].[FactGL] f      
+      
+ inner join [core].[DimAccount] a1 on      
+  a1.[accountKey] = f.[accountKey]      
+      
+ inner join [core].[DimAccountType] t1 on      
+  t1.[accountTypeKey] = a1.accountTypeKey      
+      
+ inner join [core].[DimPeriod] p1 on      
+  p1.[periodKey] = f.[periodKey]      
+      
+ outer apply (      
+      
+  select [class] = 'BS'      
+  where t1.[accountTypeCode] in ('1', '2', '3', 'B.S.', '10')      
+    
+ ) x1      
+      
+ where       
+      
+  p1.[fromDate] < getdate () and      
+  t1.[accountTypeKey] between 1 and 10      
+  and f.dataSourceKey = 1    
+ group by x1.[class], p1.[fiscalYearCode], f.[companyKey], f.[segment1Key], f.[accountKey]  
+      
+ having abs (sum (f.[amount])) !< 0.01      
+      
+  /*      
+      
+  clear actual balances      
+        
+   */      
+      
+ delete t1      
+ from [core].[FactGLOpeningBalance] t1      
+ where t1.[scenarioKey] = 1  
+ and t1.dataSourceKey = 7   
+      
+  /*      
+      
+  opening balances      
+      
+   */      
+  
+     
+      
+ insert into [core].[FactGLOpeningBalance] ([scenarioKey], [dataSourceKey], [companyKey], [periodKey], [accountKey], [segment1Key], [segment2Key], [segment3Key], [segment4Key], [segment5Key], [employeeKey], [openingBalance])      
+      
+ select      
+      
+  [scenarioKey] = 1,      
+  [dataSourceKey] = 7,  
+  [companyKey] = b1.[companyKey],      
+  [periodKey] = f.[periodKey],      
+  [accountKey] = b1.[accountKey],      
+  [segment1Key] = b1.[segment1Key],      
+  [segment2Key] = -1,      
+  [segment3Key] = -1,      
+  [segment4Key] = -1,      
+  [segment5Key] = -1,      
+  [employeeKey] = -1,      
+  [openingBalance] = sum (b1.[amount])      
+      
+ from [core].[DimPeriod] f      
+      
+ inner join #balances b1 on      
+  b1.[fiscalYearCode] <f.[fiscalYearCode]      
+      
+ where       
+      
+  f.[fromDate] < getdate () and      
+  f.[periodOfFiscalYearKey] = 1 and      
+  b1.[class] = 'BS'      
+      
+ group by b1.[companyKey], b1.[accountKey], b1.[segment1Key], f.[periodKey]      
+      
+ having abs (sum (b1.[amount])) !< 0.01      
+  
+ /*  
+  
+  retained earnings  
+  
+
+  
+   */  
+  
+  
+ insert into [core].[FactGLOpeningBalance] ([scenarioKey], [dataSourceKey], [companyKey], [periodKey], [accountKey], [segment1Key], [segment2Key], [segment3Key], [segment4Key], [segment5Key], [employeeKey], [openingBalance])  
+  
+ select      
+      
+  [scenarioKey] = 1,      
+  [dataSourceKey] = 7,  --update this with proper  
+  [companyKey] = f.[companyKey],      
+  [periodKey] = p1.[periodKey],      
+  [accountKey] = a1.[accountKey],      
+  [segment1Key] = f.[segment1Key],      
+  [segment2Key] = -1,      
+  [segment3Key] = -1,      
+  [segment4Key] = -1,      
+  [segment5Key] = -1,      
+  [employeeKey] = -1,      
+  [openingBalance] = sum (f.[amount])      
+      
+ from [core].[DimPeriod] p1    
+      
+ inner join #balances f on      
+  f.[fiscalYearCode] < p1.[fiscalYearCode]      
+      
+ inner join [core].[DimCompany] c1 on  
+  c1.[companyKey] = f.[companyKey]  
+  
+ /* i want the insert to fail when we dont find a retained earnings account for a company */  
+ left join [core].[DimAccount] a1 on  
+    
+  a1.[accountCode] = 'RETAINEDEARNINGS'  
+  
+ where    
+      
+  p1.[fromDate] < getdate () and      
+  p1.[periodOfFiscalYearKey] = 1 and      
+  f.[class] = 'PL'      
+      
+ group by f.[companyKey], a1.[accountKey], f.[segment1Key], p1.[periodKey]      
+      
+ having abs (sum (f.[amount])) !< 0.01      
+  
+ /*   
+   
+  process  
